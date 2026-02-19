@@ -138,7 +138,7 @@ void lt_test_rev_ecdsa_sign(lt_handle_t *h)
         LT_LOG_INFO("Reading the stored public key...");
         LT_TEST_ASSERT(LT_OK,
                        lt_ecc_key_read(h, i, read_pub_key, sizeof(read_pub_key), &curve, &origin));
-       
+
         LT_LOG_INFO("Signing message hash...");
         LT_TEST_ASSERT(LT_OK, lt_ecc_ecdsa_sign(h, i, msg_hash, sizeof(msg_hash), rs));
 
