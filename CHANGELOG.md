@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0]
+
+### Changed
+- `lt_ecc_ecdsa_sign` now expects a 32-byte hash instead of an arbitrary message - provided data are not hashed anymore.
+Select a hash function (e.g., SHA256) which outputs 32 bytes (or pad/truncate the output accordingly).
+
+### Added
+
+### Fixed
+
+### Removed
+
 ## [3.2.0]
 
 ### Changed
