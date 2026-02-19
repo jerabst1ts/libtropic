@@ -1337,17 +1337,19 @@ lt_ret_t lt_ecc_key_erase(lt_handle_t *h, const lt_ecc_slot_t ecc_slot)
     return lt_in__ecc_key_erase(h);
 }
 
-lt_ret_t lt_ecc_ecdsa_sign(lt_handle_t *h, const lt_ecc_slot_t ecc_slot, const uint8_t *msg,
-                           const uint32_t msg_len, uint8_t *rs)
+lt_ret_t lt_ecc_ecdsa_sign(lt_handle_t *h, const lt_ecc_slot_t ecc_slot, const uint8_t *msg_hash,
+                           const uint32_t msg_hash_len, uint8_t *rs)
 {
-    if (!h || !msg || !rs || (ecc_slot > TR01_ECC_SLOT_31)) {
+    if (!h || !msg_hash || !rs || (ecc_slot > TR01_ECC_SLOT_31) ||
+        msg_hash_len != TR01_L3_ECDSA_SIGN_CMD_MSG_HASH_LEN) {
         return LT_PARAM_ERR;
     }
+
     if (h->l3.session_status != LT_SECURE_SESSION_ON) {
         return LT_HOST_NO_SESSION;
     }
 
-    lt_ret_t ret = lt_out__ecc_ecdsa_sign(h, ecc_slot, msg, msg_len);
+    lt_ret_t ret = lt_out__ecc_ecdsa_sign(h, ecc_slot, msg_hash, msg_hash_len);
     if (ret != LT_OK) {
         return ret;
     }

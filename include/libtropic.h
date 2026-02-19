@@ -551,19 +551,19 @@ lt_ret_t lt_ecc_key_erase(lt_handle_t *h, const lt_ecc_slot_t ecc_slot);
 /**
  * @brief Performs ECDSA sign of a message with a private ECC key stored in TROPIC01
  *
- * @param h           Handle for communication with TROPIC01
- * @param ecc_slot    Slot containing a private key, TR01_ECC_SLOT_0 - TR01_ECC_SLOT_31
- * @param msg         Buffer containing a message
- * @param msg_len     Length of the message
- * @param rs          Buffer for storing a signature in a form of R and S bytes (should always have
+ * @param h            Handle for communication with TROPIC01
+ * @param ecc_slot     Slot containing a private key, TR01_ECC_SLOT_0 - TR01_ECC_SLOT_31
+ * @param msg_hash     Buffer containing a message
+ * @param msg_hash_len Length of the message
+ * @param rs           Buffer for storing a signature in a form of R and S bytes (should always have
  * length 64B)
  *
- * @retval            LT_OK Function executed successfully
- * @retval            other Function did not execute successully, you might use lt_ret_verbose() to get
- * verbose encoding of returned value
+ * @retval             LT_OK Function executed successfully
+ * @retval             other Function did not execute successully, you might use lt_ret_verbose() to
+ * get verbose encoding of returned value
  */
-lt_ret_t lt_ecc_ecdsa_sign(lt_handle_t *h, const lt_ecc_slot_t ecc_slot, const uint8_t *msg,
-                           const uint32_t msg_len, uint8_t *rs);
+lt_ret_t lt_ecc_ecdsa_sign(lt_handle_t *h, const lt_ecc_slot_t ecc_slot, const uint8_t *msg_hash,
+                           const uint32_t msg_hash_len, uint8_t *rs);
 
 /**
  * @brief Performs EdDSA sign of a message with a private ECC key stored in TROPIC01

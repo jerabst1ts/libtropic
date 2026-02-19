@@ -122,8 +122,15 @@ void lt_test_rev_ecdsa_sign(lt_handle_t *h)
                     msg_to_sign_len);
         LT_TEST_ASSERT(LT_OK, lt_random_bytes(h, msg_to_sign, msg_to_sign_len));
 
-        LT_LOG_INFO("Signing message with empty slot (should fail)...");
-        LT_TEST_ASSERT(LT_L3_INVALID_KEY, lt_ecc_ecdsa_sign(h, i, msg_to_sign, msg_to_sign_len, rs));
+        LT_LOG_INFO("Calculating hash of the message...");
+        LT_TEST_ASSERT(LT_OK, lt_sha256_init(h->l3.crypto_ctx));
+        LT_TEST_ASSERT(LT_OK, lt_sha256_start(h->l3.crypto_ctx));
+        LT_TEST_ASSERT(LT_OK, lt_sha256_update(h->l3.crypto_ctx, msg_to_sign, msg_to_sign_len));
+        LT_TEST_ASSERT(LT_OK, lt_sha256_finish(h->l3.crypto_ctx, msg_hash));
+        LT_TEST_ASSERT(LT_OK, lt_sha256_deinit(h->l3.crypto_ctx));
+
+        LT_LOG_INFO("Signing message hash with empty slot (should fail)...");
+        LT_TEST_ASSERT(LT_L3_INVALID_KEY, lt_ecc_ecdsa_sign(h, i, msg_hash, sizeof(msg_hash), rs));
 
         LT_LOG_INFO("Storing private key pre-generated using P256 curve...");
         LT_TEST_ASSERT(LT_OK, lt_ecc_key_store(h, i, TR01_CURVE_P256, priv_test_key));
@@ -131,16 +138,9 @@ void lt_test_rev_ecdsa_sign(lt_handle_t *h)
         LT_LOG_INFO("Reading the stored public key...");
         LT_TEST_ASSERT(LT_OK,
                        lt_ecc_key_read(h, i, read_pub_key, sizeof(read_pub_key), &curve, &origin));
-
-        LT_LOG_INFO("Signing message...");
-        LT_TEST_ASSERT(LT_OK, lt_ecc_ecdsa_sign(h, i, msg_to_sign, msg_to_sign_len, rs));
-
-        LT_LOG_INFO("Calculating hash of the message before verifying the signature...");
-        LT_TEST_ASSERT(LT_OK, lt_sha256_init(h->l3.crypto_ctx));
-        LT_TEST_ASSERT(LT_OK, lt_sha256_start(h->l3.crypto_ctx));
-        LT_TEST_ASSERT(LT_OK, lt_sha256_update(h->l3.crypto_ctx, msg_to_sign, msg_to_sign_len));
-        LT_TEST_ASSERT(LT_OK, lt_sha256_finish(h->l3.crypto_ctx, msg_hash));
-        LT_TEST_ASSERT(LT_OK, lt_sha256_deinit(h->l3.crypto_ctx));
+       
+        LT_LOG_INFO("Signing message hash...");
+        LT_TEST_ASSERT(LT_OK, lt_ecc_ecdsa_sign(h, i, msg_hash, sizeof(msg_hash), rs));
 
         LT_LOG_INFO("Verifying signature...");
         LT_TEST_ASSERT(1, uECC_verify(read_pub_key, msg_hash, sizeof(msg_hash), rs, uECC_secp256r1()));
@@ -148,8 +148,8 @@ void lt_test_rev_ecdsa_sign(lt_handle_t *h)
         LT_LOG_INFO("Erasing the slot...");
         LT_TEST_ASSERT(LT_OK, lt_ecc_key_erase(h, i));
 
-        LT_LOG_INFO("Signing message with erased slot (should fail)...");
-        LT_TEST_ASSERT(LT_L3_INVALID_KEY, lt_ecc_ecdsa_sign(h, i, msg_to_sign, msg_to_sign_len, rs));
+        LT_LOG_INFO("Signing message hash with erased slot (should fail)...");
+        LT_TEST_ASSERT(LT_L3_INVALID_KEY, lt_ecc_ecdsa_sign(h, i, msg_hash, sizeof(msg_hash), rs));
     }
     LT_LOG_LINE();
 
@@ -166,8 +166,15 @@ void lt_test_rev_ecdsa_sign(lt_handle_t *h)
                     msg_to_sign_len);
         LT_TEST_ASSERT(LT_OK, lt_random_bytes(h, msg_to_sign, msg_to_sign_len));
 
-        LT_LOG_INFO("Signing message with empty slot (should fail)...");
-        LT_TEST_ASSERT(LT_L3_INVALID_KEY, lt_ecc_ecdsa_sign(h, i, msg_to_sign, msg_to_sign_len, rs));
+        LT_LOG_INFO("Calculating hash of the message...");
+        LT_TEST_ASSERT(LT_OK, lt_sha256_init(h->l3.crypto_ctx));
+        LT_TEST_ASSERT(LT_OK, lt_sha256_start(h->l3.crypto_ctx));
+        LT_TEST_ASSERT(LT_OK, lt_sha256_update(h->l3.crypto_ctx, msg_to_sign, msg_to_sign_len));
+        LT_TEST_ASSERT(LT_OK, lt_sha256_finish(h->l3.crypto_ctx, msg_hash));
+        LT_TEST_ASSERT(LT_OK, lt_sha256_deinit(h->l3.crypto_ctx));
+
+        LT_LOG_INFO("Signing message hash with empty slot (should fail)...");
+        LT_TEST_ASSERT(LT_L3_INVALID_KEY, lt_ecc_ecdsa_sign(h, i, msg_hash, sizeof(msg_hash), rs));
 
         LT_LOG_INFO("Generating private key using P256 curve...");
         LT_TEST_ASSERT(LT_OK, lt_ecc_key_generate(h, i, TR01_CURVE_P256));
@@ -176,15 +183,8 @@ void lt_test_rev_ecdsa_sign(lt_handle_t *h)
         LT_TEST_ASSERT(LT_OK,
                        lt_ecc_key_read(h, i, read_pub_key, sizeof(read_pub_key), &curve, &origin));
 
-        LT_LOG_INFO("Signing message...");
-        LT_TEST_ASSERT(LT_OK, lt_ecc_ecdsa_sign(h, i, msg_to_sign, msg_to_sign_len, rs));
-
-        LT_LOG_INFO("Calculating hash of the message before verifying the signature...");
-        LT_TEST_ASSERT(LT_OK, lt_sha256_init(h->l3.crypto_ctx));
-        LT_TEST_ASSERT(LT_OK, lt_sha256_start(h->l3.crypto_ctx));
-        LT_TEST_ASSERT(LT_OK, lt_sha256_update(h->l3.crypto_ctx, msg_to_sign, msg_to_sign_len));
-        LT_TEST_ASSERT(LT_OK, lt_sha256_finish(h->l3.crypto_ctx, msg_hash));
-        LT_TEST_ASSERT(LT_OK, lt_sha256_deinit(h->l3.crypto_ctx));
+        LT_LOG_INFO("Signing message hash...");
+        LT_TEST_ASSERT(LT_OK, lt_ecc_ecdsa_sign(h, i, msg_hash, sizeof(msg_hash), rs));
 
         LT_LOG_INFO("Verifying signature...");
         LT_TEST_ASSERT(1, uECC_verify(read_pub_key, msg_hash, sizeof(msg_hash), rs, uECC_secp256r1()));
@@ -192,8 +192,8 @@ void lt_test_rev_ecdsa_sign(lt_handle_t *h)
         LT_LOG_INFO("Erasing the slot...");
         LT_TEST_ASSERT(LT_OK, lt_ecc_key_erase(h, i));
 
-        LT_LOG_INFO("Signing message with erased slot (should fail)...");
-        LT_TEST_ASSERT(LT_L3_INVALID_KEY, lt_ecc_ecdsa_sign(h, i, msg_to_sign, msg_to_sign_len, rs));
+        LT_LOG_INFO("Signing message hash with erased slot (should fail)...");
+        LT_TEST_ASSERT(LT_L3_INVALID_KEY, lt_ecc_ecdsa_sign(h, i, msg_hash, sizeof(msg_hash), rs));
     }
     LT_LOG_LINE();
 

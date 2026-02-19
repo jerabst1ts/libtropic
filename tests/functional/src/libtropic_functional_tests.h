@@ -48,14 +48,15 @@ void lt_test_rev_eddsa_sign(lt_handle_t *h);
  * Test steps:
  *  1. Start Secure Session with pairing key slot 0.
  *  2. Generate random message with random size for signing.
- *  3. Sign message with each empty slot and check for fail.
- *  4. Store pre-generated private key to each slot.
- *  5. Read the public key from each slot.
- *  6. Sign the message with each slot.
- *  7. Verify the signature.
- *  8. Erase each slot.
- *  9. Sign message with each erased slot and check for fail.
- *  10. Do steps 2-9, but instead of storing the key, generate it.
+ *  3. Calculate a hash of the message.
+ *  4. Sign message hash with each empty slot and check for fail.
+ *  5. Store pre-generated private key to each slot.
+ *  6. Read the public key from each slot.
+ *  7. Sign the message hash with each slot.
+ *  8. Verify the signature.
+ *  9. Erase each slot.
+ *  10. Sign message hash with each erased slot and check for fail.
+ *  11. Do steps 2-9, but instead of storing the key, generate it.
  *
  * @param h     Handle for communication with TROPIC01
  */
