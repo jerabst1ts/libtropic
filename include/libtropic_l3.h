@@ -462,10 +462,10 @@ lt_ret_t lt_in__ecc_key_erase(lt_handle_t *h);
  * @note Used for separate L3 communication, for more information read info
  * at the top of this file.
  *
- * @param h            Handle for communication with TROPIC01
- * @param slot         ECC key slot to use for signing
- * @param msg_hash     Message to sign
- * @param msg_hash_len Length of the message
+ * @param h            Handle for communication with TROPIC01.
+ * @param slot         ECC key slot to use for signing.
+ * @param msg_hash     Buffer containing a 32-byte hash of the message to sign.
+ * @param msg_hash_len Length of the hash.
  * @return             LT_OK if success, otherwise returns other error code.
  */
 lt_ret_t lt_out__ecc_ecdsa_sign(lt_handle_t *h, const lt_ecc_slot_t slot, const uint8_t *msg_hash,
