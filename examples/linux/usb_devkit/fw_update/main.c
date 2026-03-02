@@ -117,8 +117,49 @@ int main(void)
     }
     printf("OK\n");
 
+    // First, we check versions of both updateable firmwares. To do that, we need TROPIC01 to
+    // **not** be in the Start-up Mode. If there are valid firmwares, TROPIC01 will begin to
+    // execute them automatically on boot.
+    printf("Rebooting TROPIC01...");
+    ret = lt_reboot(&lt_handle, TR01_REBOOT);
+    if (ret != LT_OK) {
+        fprintf(stderr, "\nlt_reboot() failed, ret=%s\n", lt_ret_verbose(ret));
+        lt_deinit(&lt_handle);
+        mbedtls_psa_crypto_free();
+        return -1;
+    }
+    printf("OK\n");
+
+    if (get_fw_versions(&lt_handle) != LT_OK) {
+        lt_deinit(&lt_handle);
+        mbedtls_psa_crypto_free();
+        return -1;
+    }
+
+    printf("Versions to update to:\n");
+    printf("  - RISC-V FW version: %d.%d.%d\n", 6, 6, 6);
+    printf("  - SPECT FW version: %d.%d.%d\n", 6, 6, 6);
+
+    printf("Proceed with update? [y/N]: ");
+    char user_input = getchar();
+    char c;
+    while ((c = getchar()) != '\n' && c != EOF);  // Clear input buffer
+    if (user_input != 'y' && user_input != 'Y') {
+        printf("\nUpdate cancelled by user.\n");
+        lt_deinit(&lt_handle);
+        mbedtls_psa_crypto_free();
+        return 0;
+    }
+
+    bool disable_mtnc_mode_after_update = false;
+    printf("Disable Maintenance Mode in R-Config after the FW update? [y/N]: ");
+    user_input = getchar();
+    if (user_input == 'y') {
+        disable_mtnc_mode_after_update = true;
+    }
+
     // Establish Secure Channel Session so we can read I/R-Config.
-    printf("Starting Secure Session with key slot %d...", (int)TR01_PAIRING_KEY_SLOT_INDEX_0);
+    printf("\nStarting Secure Session with key slot %d...", (int)TR01_PAIRING_KEY_SLOT_INDEX_0);
     // Keys are chosen based on the CMake option LT_SH0_KEYS.
     ret = lt_verify_chip_and_start_secure_session(&lt_handle, LT_EX_SH0_PRIV, LT_EX_SH0_PUB,
                                                   TR01_PAIRING_KEY_SLOT_INDEX_0);
@@ -175,9 +216,9 @@ int main(void)
     printf("OK\n");
 
     if (!(r_config.obj[TR01_CFG_START_UP_IDX] & BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK)) {
-        printf("Maintenance Mode is not enabled in R-Config, enabling it now...");
+        printf("Maintenance Mode is not enabled in R-Config, enabling it now:\n");
         r_config.obj[TR01_CFG_START_UP_IDX] |= BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK;
-        printf("Erasing R-Config...");
+        printf("  Erasing R-Config...");
         ret = lt_r_config_erase(&lt_handle);
         if (ret != LT_OK) {
             fprintf(stderr, "\nFailed to erase R-Config, ret=%s\n", lt_ret_verbose(ret));
@@ -188,7 +229,7 @@ int main(void)
         }
         printf("OK\n");
 
-        printf("Writing R-Config...");
+        printf("  Writing R-Config...");
         ret = lt_write_whole_R_config(&lt_handle, &r_config);
         if (ret != LT_OK) {
             fprintf(stderr, "\nFailed to write R-Config, ret=%s\n", lt_ret_verbose(ret));
@@ -212,47 +253,6 @@ int main(void)
         return -1;
     }
     printf("OK\n");
-
-    // First, we check versions of both updateable firmwares. To do that, we need TROPIC01 to
-    // **not** be in the Start-up Mode. If there are valid firmwares, TROPIC01 will begin to
-    // execute them automatically on boot.
-    printf("Rebooting TROPIC01...");
-    ret = lt_reboot(&lt_handle, TR01_REBOOT);
-    if (ret != LT_OK) {
-        fprintf(stderr, "\nlt_reboot() failed, ret=%s\n", lt_ret_verbose(ret));
-        lt_deinit(&lt_handle);
-        mbedtls_psa_crypto_free();
-        return -1;
-    }
-    printf("OK\n");
-
-    if (get_fw_versions(&lt_handle) != LT_OK) {
-        lt_deinit(&lt_handle);
-        mbedtls_psa_crypto_free();
-        return -1;
-    }
-
-    printf("Versions to update to:\n");
-    printf("  - RISC-V FW version: %d.%d.%d\n", 6, 6, 6);
-    printf("  - SPECT FW version: %d.%d.%d\n", 6, 6, 6);
-
-    printf("Proceed with update? [y/N]: ");
-    char user_input = getchar();
-    char c;
-    while ((c = getchar()) != '\n' && c != EOF);  // Clear input buffer
-    if (user_input != 'y' && user_input != 'Y') {
-        printf("\nUpdate cancelled by user.\n");
-        lt_deinit(&lt_handle);
-        mbedtls_psa_crypto_free();
-        return 0;
-    }
-
-    bool disable_mtnc_mode_after_update = false;
-    printf("Disable Maintenance Mode in R-Config after the FW update? [y/N]: ");
-    user_input = getchar();
-    if (user_input == 'y') {
-        disable_mtnc_mode_after_update = true;
-    }
 
     printf("\nStarting firmware update...\n");
 
@@ -357,7 +357,7 @@ int main(void)
     }
 
     if (disable_mtnc_mode_after_update) {
-        printf("Starting Secure Session with key slot %d...", (int)TR01_PAIRING_KEY_SLOT_INDEX_0);
+        printf("\nStarting Secure Session with key slot %d...", (int)TR01_PAIRING_KEY_SLOT_INDEX_0);
         // Keys are chosen based on the CMake option LT_SH0_KEYS.
         ret = lt_verify_chip_and_start_secure_session(&lt_handle, LT_EX_SH0_PRIV, LT_EX_SH0_PUB,
                                                       TR01_PAIRING_KEY_SLOT_INDEX_0);
