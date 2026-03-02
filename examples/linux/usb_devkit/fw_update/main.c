@@ -19,6 +19,15 @@
 #include "libtropic_port_posix_usb_dongle.h"
 #include "psa/crypto.h"
 
+// Choose pairing keypair for slot 0.
+#if LT_USE_SH0_ENG_SAMPLE
+#define LT_EX_SH0_PRIV sh0priv_eng_sample
+#define LT_EX_SH0_PUB sh0pub_eng_sample
+#elif LT_USE_SH0_PROD0
+#define LT_EX_SH0_PRIV sh0priv_prod0
+#define LT_EX_SH0_PUB sh0pub_prod0
+#endif
+
 lt_ret_t get_fw_versions(lt_handle_t *lt_handle)
 {
     uint8_t cpu_fw_ver[TR01_L2_GET_INFO_RISCV_FW_SIZE] = {0};
@@ -108,9 +117,90 @@ int main(void)
     }
     printf("OK\n");
 
-    // First, we check versions of both updateable firmwares. To do that, we need TROPIC01 to **not**
-    // be in the Start-up Mode. If there are valid firmwares, TROPIC01 will begin to execute them
-    // automatically on boot.
+    // Establish Secure Channel Session so we can read I/R-Config.
+    printf("Starting Secure Session with key slot %d...", (int)TR01_PAIRING_KEY_SLOT_INDEX_0);
+    // Keys are chosen based on the CMake option LT_SH0_KEYS.
+    ret = lt_verify_chip_and_start_secure_session(&lt_handle, LT_EX_SH0_PRIV, LT_EX_SH0_PUB,
+                                                  TR01_PAIRING_KEY_SLOT_INDEX_0);
+    if (LT_OK != ret) {
+        fprintf(stderr, "\nFailed to start Secure Session with key %d, ret=%s\n",
+                (int)TR01_PAIRING_KEY_SLOT_INDEX_0, lt_ret_verbose(ret));
+        fprintf(stderr,
+                "Check if you use correct SH0 keys! Hint: if you use an engineering sample chip, "
+                "compile with "
+                "-DLT_SH0_KEYS=eng_sample\n");
+        lt_deinit(&lt_handle);
+        mbedtls_psa_crypto_free();
+        return -1;
+    }
+    printf("OK\n");
+
+    // Check I-Config if Maintenance Mode is enabled.
+    uint32_t startup_cfg;
+    printf("Reading I-Config...");
+    ret = lt_i_config_read(&lt_handle, TR01_CFG_START_UP_ADDR, &startup_cfg);
+    if (ret != LT_OK) {
+        fprintf(stderr, "\nFailed to read I-Config, ret=%s\n", lt_ret_verbose(ret));
+        lt_session_abort(&lt_handle);
+        lt_deinit(&lt_handle);
+        mbedtls_psa_crypto_free();
+        return -1;
+    }
+    printf("OK\n");
+
+    printf("Checking if Maintenance Mode is enabled in I-Config...");
+    if (!(startup_cfg & BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK)) {
+        fprintf(stderr,
+                "\nMaintenance Mode is not enabled in I-Config -> FW Update cannot be performed.\n");
+        lt_session_abort(&lt_handle);
+        lt_deinit(&lt_handle);
+        mbedtls_psa_crypto_free();
+        return -1;
+    }
+    printf("OK\n");
+
+    // Check R-Config if Maintenance Mode is enabled and enable if needed.
+    printf("Reading R-Config...");
+    ret = lt_r_config_read(&lt_handle, TR01_CFG_START_UP_ADDR, &startup_cfg);
+    if (ret != LT_OK) {
+        fprintf(stderr, "\nFailed to read R-Config, ret=%s\n", lt_ret_verbose(ret));
+        lt_session_abort(&lt_handle);
+        lt_deinit(&lt_handle);
+        mbedtls_psa_crypto_free();
+        return -1;
+    }
+    printf("OK\n");
+
+    if (!(startup_cfg & BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK)) {
+        printf("Maintenance Mode is not enabled in R-Config, enabling it now...");
+        startup_cfg |= BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK;
+        ret = lt_r_config_write(&lt_handle, TR01_CFG_START_UP_ADDR, startup_cfg);
+        if (ret != LT_OK) {
+            fprintf(stderr, "\nFailed to write R-Config, ret=%s\n", lt_ret_verbose(ret));
+            lt_session_abort(&lt_handle);
+            lt_deinit(&lt_handle);
+            mbedtls_psa_crypto_free();
+            return -1;
+        }
+        printf("OK\n");
+    }
+    else {
+        printf("Maintenance Mode is already enabled in R-Config.\n");
+    }
+
+    printf("Aborting Secure Session...");
+    ret = lt_session_abort(&lt_handle);
+    if (LT_OK != ret) {
+        fprintf(stderr, "\nFailed to abort Secure Session, ret=%s\n", lt_ret_verbose(ret));
+        lt_deinit(&lt_handle);
+        mbedtls_psa_crypto_free();
+        return -1;
+    }
+    printf("OK\n");
+
+    // First, we check versions of both updateable firmwares. To do that, we need TROPIC01 to
+    // **not** be in the Start-up Mode. If there are valid firmwares, TROPIC01 will begin to
+    // execute them automatically on boot.
     printf("Rebooting TROPIC01...");
     ret = lt_reboot(&lt_handle, TR01_REBOOT);
     if (ret != LT_OK) {
@@ -133,12 +223,22 @@ int main(void)
 
     printf("Proceed with update? [y/N]: ");
     char user_input = getchar();
+    char c;
+    while ((c = getchar()) != '\n' && c != EOF);  // Clear input buffer
     if (user_input != 'y' && user_input != 'Y') {
         printf("\nUpdate cancelled by user.\n");
         lt_deinit(&lt_handle);
         mbedtls_psa_crypto_free();
         return 0;
     }
+
+    bool disable_mtnc_mode_after_update = false;
+    printf("Disable Maintenance Mode in R-Config after the FW update? [y/N]: ");
+    user_input = getchar();
+    if (user_input == 'y') {
+        disable_mtnc_mode_after_update = true;
+    }
+
     printf("\nStarting firmware update...\n");
 
     // The chip must be in Start-up Mode to be able to perform a firmware update.
@@ -195,6 +295,36 @@ int main(void)
     printf("OK\n");
     printf("Successfully updated all 4 FW banks.\n\n");
 
+    printf("Reading FW bank headers:\n");
+    ret = lt_print_fw_header(&lt_handle, TR01_FW_BANK_FW1, printf);
+    if (ret != LT_OK) {
+        fprintf(stderr, "Failed to print TR01_FW_BANK_FW1 header, ret=%s\n", lt_ret_verbose(ret));
+        lt_deinit(&lt_handle);
+        mbedtls_psa_crypto_free();
+        return -1;
+    }
+    ret = lt_print_fw_header(&lt_handle, TR01_FW_BANK_FW2, printf);
+    if (ret != LT_OK) {
+        fprintf(stderr, "Failed to print TR01_FW_BANK_FW2 header, ret=%s\n", lt_ret_verbose(ret));
+        lt_deinit(&lt_handle);
+        mbedtls_psa_crypto_free();
+        return -1;
+    }
+    ret = lt_print_fw_header(&lt_handle, TR01_FW_BANK_SPECT1, printf);
+    if (ret != LT_OK) {
+        fprintf(stderr, "Failed to print TR01_FW_BANK_SPECT1 header, ret=%s\n", lt_ret_verbose(ret));
+        lt_deinit(&lt_handle);
+        mbedtls_psa_crypto_free();
+        return -1;
+    }
+    ret = lt_print_fw_header(&lt_handle, TR01_FW_BANK_SPECT2, printf);
+    if (ret != LT_OK) {
+        fprintf(stderr, "Failed to print TR01_FW_BANK_SPECT2 header, ret=%s\n", lt_ret_verbose(ret));
+        lt_deinit(&lt_handle);
+        mbedtls_psa_crypto_free();
+        return -1;
+    }
+
     printf("Sending reboot request...");
     ret = lt_reboot(&lt_handle, TR01_REBOOT);
     if (ret != LT_OK) {
@@ -209,6 +339,72 @@ int main(void)
         lt_deinit(&lt_handle);
         mbedtls_psa_crypto_free();
         return -1;
+    }
+
+    if (disable_mtnc_mode_after_update) {
+        printf("Starting Secure Session with key slot %d...", (int)TR01_PAIRING_KEY_SLOT_INDEX_0);
+        // Keys are chosen based on the CMake option LT_SH0_KEYS.
+        ret = lt_verify_chip_and_start_secure_session(&lt_handle, LT_EX_SH0_PRIV, LT_EX_SH0_PUB,
+                                                      TR01_PAIRING_KEY_SLOT_INDEX_0);
+        if (LT_OK != ret) {
+            fprintf(stderr, "\nFailed to start Secure Session with key %d, ret=%s\n",
+                    (int)TR01_PAIRING_KEY_SLOT_INDEX_0, lt_ret_verbose(ret));
+            lt_deinit(&lt_handle);
+            mbedtls_psa_crypto_free();
+            return -1;
+        }
+        printf("OK\n");
+
+        printf("Reading R-Config...");
+        ret = lt_r_config_read(&lt_handle, TR01_CFG_START_UP_ADDR, &startup_cfg);
+        if (ret != LT_OK) {
+            fprintf(stderr, "\nFailed to read R-Config, ret=%s\n", lt_ret_verbose(ret));
+            lt_session_abort(&lt_handle);
+            lt_deinit(&lt_handle);
+            mbedtls_psa_crypto_free();
+            return -1;
+        }
+        printf("OK\n");
+
+        printf("Disabling Maintenance Mode in R-Config...");
+        startup_cfg &= ~BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK;
+        ret = lt_r_config_write(&lt_handle, TR01_CFG_START_UP_ADDR, startup_cfg);
+        if (ret != LT_OK) {
+            fprintf(stderr, "\nFailed to write R-Config, ret=%s\n", lt_ret_verbose(ret));
+            lt_session_abort(&lt_handle);
+            lt_deinit(&lt_handle);
+            mbedtls_psa_crypto_free();
+            return -1;
+        }
+        printf("OK\n");
+
+        printf("Aborting Secure Session...");
+        ret = lt_session_abort(&lt_handle);
+        if (LT_OK != ret) {
+            fprintf(stderr, "\nFailed to abort Secure Session, ret=%s\n", lt_ret_verbose(ret));
+            lt_deinit(&lt_handle);
+            mbedtls_psa_crypto_free();
+            return -1;
+        }
+        printf("OK\n");
+
+        printf("Verifying that Maintenance Mode is not accessible...");
+        ret = lt_reboot(&lt_handle, TR01_MAINTENANCE_REBOOT);
+        if (ret == LT_REBOOT_UNSUCCESSFUL) {
+            printf("OK\n");
+        }
+        else if (ret != LT_OK) {
+            fprintf(stderr, "\nlt_reboot() failed, ret=%s\n", lt_ret_verbose(ret));
+            lt_deinit(&lt_handle);
+            mbedtls_psa_crypto_free();
+            return -1;
+        }
+        else {
+            fprintf(stderr, "\nMaintenance reboot succeeded! ret=%s\n", lt_ret_verbose(ret));
+            lt_deinit(&lt_handle);
+            mbedtls_psa_crypto_free();
+            return -1;
+        }
     }
 
     printf("Deinitializing handle...");
