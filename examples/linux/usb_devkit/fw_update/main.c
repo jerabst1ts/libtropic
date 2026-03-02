@@ -135,12 +135,12 @@ int main(void)
     }
     printf("OK\n");
 
-    // Check I-Config if Maintenance Mode is enabled.
-    uint32_t startup_cfg;
-    printf("Reading I-Config...");
-    ret = lt_i_config_read(&lt_handle, TR01_CFG_START_UP_ADDR, &startup_cfg);
+    // Read I-Config and check if Maintenance Mode is enabled.
+    uint32_t i_config_cfg_startup;
+    printf("Reading I-Config[CFG_START_UP]...");
+    ret = lt_i_config_read(&lt_handle, TR01_CFG_START_UP_ADDR, &i_config_cfg_startup);
     if (ret != LT_OK) {
-        fprintf(stderr, "\nFailed to read I-Config, ret=%s\n", lt_ret_verbose(ret));
+        fprintf(stderr, "\nFailed to read I-Config[CFG_START_UP], ret=%s\n", lt_ret_verbose(ret));
         lt_session_abort(&lt_handle);
         lt_deinit(&lt_handle);
         mbedtls_psa_crypto_free();
@@ -148,8 +148,8 @@ int main(void)
     }
     printf("OK\n");
 
-    printf("Checking if Maintenance Mode is enabled in I-Config...");
-    if (!(startup_cfg & BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK)) {
+    printf("Checking if Maintenance Mode is enabled in I-Config[CFG_START_UP]...");
+    if (!(i_config_cfg_startup & BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK)) {
         fprintf(stderr,
                 "\nMaintenance Mode is not enabled in I-Config -> FW Update cannot be performed.\n");
         lt_session_abort(&lt_handle);
@@ -159,9 +159,12 @@ int main(void)
     }
     printf("OK\n");
 
-    // Check R-Config if Maintenance Mode is enabled and enable if needed.
+    // Read R-Config and check if Maintenance Mode is enabled.
+    // The whole R-Config is read in case we need to modify it, as it has to be completely erased
+    // before writing again.
+    lt_config_t r_config;
     printf("Reading R-Config...");
-    ret = lt_r_config_read(&lt_handle, TR01_CFG_START_UP_ADDR, &startup_cfg);
+    ret = lt_read_whole_R_config(&lt_handle, &r_config);
     if (ret != LT_OK) {
         fprintf(stderr, "\nFailed to read R-Config, ret=%s\n", lt_ret_verbose(ret));
         lt_session_abort(&lt_handle);
@@ -171,10 +174,22 @@ int main(void)
     }
     printf("OK\n");
 
-    if (!(startup_cfg & BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK)) {
+    if (!(r_config.obj[TR01_CFG_START_UP_IDX] & BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK)) {
         printf("Maintenance Mode is not enabled in R-Config, enabling it now...");
-        startup_cfg |= BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK;
-        ret = lt_r_config_write(&lt_handle, TR01_CFG_START_UP_ADDR, startup_cfg);
+        r_config.obj[TR01_CFG_START_UP_IDX] |= BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK;
+        printf("Erasing R-Config...");
+        ret = lt_r_config_erase(&lt_handle);
+        if (ret != LT_OK) {
+            fprintf(stderr, "\nFailed to erase R-Config, ret=%s\n", lt_ret_verbose(ret));
+            lt_session_abort(&lt_handle);
+            lt_deinit(&lt_handle);
+            mbedtls_psa_crypto_free();
+            return -1;
+        }
+        printf("OK\n");
+
+        printf("Writing R-Config...");
+        ret = lt_write_whole_R_config(&lt_handle, &r_config);
         if (ret != LT_OK) {
             fprintf(stderr, "\nFailed to write R-Config, ret=%s\n", lt_ret_verbose(ret));
             lt_session_abort(&lt_handle);
@@ -356,7 +371,7 @@ int main(void)
         printf("OK\n");
 
         printf("Reading R-Config...");
-        ret = lt_r_config_read(&lt_handle, TR01_CFG_START_UP_ADDR, &startup_cfg);
+        ret = lt_read_whole_R_config(&lt_handle, &r_config);
         if (ret != LT_OK) {
             fprintf(stderr, "\nFailed to read R-Config, ret=%s\n", lt_ret_verbose(ret));
             lt_session_abort(&lt_handle);
@@ -366,9 +381,20 @@ int main(void)
         }
         printf("OK\n");
 
+        printf("Erasing R-Config...");
+        ret = lt_r_config_erase(&lt_handle);
+        if (ret != LT_OK) {
+            fprintf(stderr, "\nFailed to erase R-Config, ret=%s\n", lt_ret_verbose(ret));
+            lt_session_abort(&lt_handle);
+            lt_deinit(&lt_handle);
+            mbedtls_psa_crypto_free();
+            return -1;
+        }
+        printf("OK\n");
+
         printf("Disabling Maintenance Mode in R-Config...");
-        startup_cfg &= ~BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK;
-        ret = lt_r_config_write(&lt_handle, TR01_CFG_START_UP_ADDR, startup_cfg);
+        r_config.obj[TR01_CFG_START_UP_IDX] &= ~BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK;
+        ret = lt_write_whole_R_config(&lt_handle, &r_config);
         if (ret != LT_OK) {
             fprintf(stderr, "\nFailed to write R-Config, ret=%s\n", lt_ret_verbose(ret));
             lt_session_abort(&lt_handle);
