@@ -53,4 +53,8 @@ target_compile_options(trezor_crypto PRIVATE -ffunction-sections -fdata-sections
 # The final executable that links against 'trezor_crypto' needs this flag.
 # 'INTERFACE' propagates this requirement to the consumer without
 # applying it to the library target itself.
-target_link_options(trezor_crypto INTERFACE -Wl,--gc-sections)
+if(APPLE)
+    target_link_options(trezor_crypto INTERFACE -Wl,-dead_strip)
+else()
+    target_link_options(trezor_crypto INTERFACE -Wl,--gc-sections)
+endif()
