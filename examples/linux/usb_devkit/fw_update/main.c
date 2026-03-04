@@ -215,9 +215,9 @@ int main(void)
     }
     printf("OK\n");
 
+    printf("Checking if Maintenance Mode is enabled in R-Config[CFG_START_UP]...");
     if (!(r_config.obj[TR01_CFG_START_UP_IDX] & BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK)) {
-        printf("Maintenance Mode is not enabled in R-Config, enabling it now:\n");
-        r_config.obj[TR01_CFG_START_UP_IDX] |= BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK;
+        printf("Disabled, will enable it\n");
         printf("  Erasing R-Config...");
         ret = lt_r_config_erase(&lt_handle);
         if (ret != LT_OK) {
@@ -229,7 +229,8 @@ int main(void)
         }
         printf("OK\n");
 
-        printf("  Writing R-Config...");
+        r_config.obj[TR01_CFG_START_UP_IDX] |= BOOTLOADER_CO_CFG_START_UP_MAINTENANCE_ENA_MASK;
+        printf("  Writing modified R-Config...");
         ret = lt_write_whole_R_config(&lt_handle, &r_config);
         if (ret != LT_OK) {
             fprintf(stderr, "\nFailed to write R-Config, ret=%s\n", lt_ret_verbose(ret));
@@ -239,20 +240,20 @@ int main(void)
             return -1;
         }
         printf("OK\n");
+
+        printf("Rebooting TROPIC01 to apply R-Config changes...");
+        ret = lt_reboot(&lt_handle, TR01_REBOOT);
+        if (ret != LT_OK) {
+            fprintf(stderr, "\nlt_reboot() failed, ret=%s\n", lt_ret_verbose(ret));
+            lt_deinit(&lt_handle);
+            mbedtls_psa_crypto_free();
+            return -1;
+        }
+        printf("OK\n");
     }
     else {
-        printf("Maintenance Mode is already enabled in R-Config.\n");
+        printf("OK\n");
     }
-
-    printf("Aborting Secure Session...");
-    ret = lt_session_abort(&lt_handle);
-    if (LT_OK != ret) {
-        fprintf(stderr, "\nFailed to abort Secure Session, ret=%s\n", lt_ret_verbose(ret));
-        lt_deinit(&lt_handle);
-        mbedtls_psa_crypto_free();
-        return -1;
-    }
-    printf("OK\n");
 
     printf("\nStarting firmware update...\n");
 
@@ -404,10 +405,10 @@ int main(void)
         }
         printf("OK\n");
 
-        printf("Aborting Secure Session...");
-        ret = lt_session_abort(&lt_handle);
-        if (LT_OK != ret) {
-            fprintf(stderr, "\nFailed to abort Secure Session, ret=%s\n", lt_ret_verbose(ret));
+        printf("Rebooting TROPIC01 to apply R-Config changes...");
+        ret = lt_reboot(&lt_handle, TR01_REBOOT);
+        if (ret != LT_OK) {
+            fprintf(stderr, "\nlt_reboot() failed, ret=%s\n", lt_ret_verbose(ret));
             lt_deinit(&lt_handle);
             mbedtls_psa_crypto_free();
             return -1;
@@ -416,7 +417,7 @@ int main(void)
 
         printf("Verifying that Maintenance Mode is not accessible...");
         ret = lt_reboot(&lt_handle, TR01_MAINTENANCE_REBOOT);
-        if (ret == LT_REBOOT_UNSUCCESSFUL) {
+        if (ret == LT_L2_RESP_DISABLED) {
             printf("OK\n");
         }
         else if (ret != LT_OK) {
