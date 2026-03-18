@@ -26,6 +26,3 @@ Libtropic communicates with our USB Devkits using the USB protocol. See our [TRO
 
     !!! success "Raspberry Pi 5"
         Fortunately, Raspberry Pi 5 fixes these issues and the USB Devkit works without any issues.
-
-!!! failure "Interrupt Pin Support"
-    The USB Devkit port does not support TROPIC01's interrupt pin.
