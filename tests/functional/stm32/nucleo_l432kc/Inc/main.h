@@ -71,6 +71,16 @@
 #define SPIx_MOSI_GPIO_PORT GPIOA
 #define SPIx_MOSI_AF GPIO_AF5_SPI1
 
+#if LT_USE_INT_PIN
+/* Definition for GPIO interrupt pin clock resources
+ * Following GPIO is used to check on INT pin for READY signal during communication.
+ */
+#define LT_INT_BANK GPIOC
+#define LT_INT_PIN GPIO_PIN_15
+/* Definition for GPIO interrupt pin clock resources */
+#define LT_INT_CLK_ENABLE() __HAL_RCC_GPIOC_CLK_ENABLE()
+#endif
+
 /* Exported variables ------------------------------------------------------- */
 extern RNG_HandleTypeDef RNGHandle;
 

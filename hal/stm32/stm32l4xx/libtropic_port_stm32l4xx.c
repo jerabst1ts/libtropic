@@ -165,6 +165,25 @@ lt_ret_t lt_port_delay(lt_l2_state_t *s2, uint32_t ms)
     return LT_OK;
 }
 
+#if LT_USE_INT_PIN
+lt_ret_t lt_port_delay_on_int(lt_l2_state_t *s2, uint32_t ms)
+{
+    lt_dev_stm32l4xx_t *device = (lt_dev_stm32l4xx_t *)(s2->device);
+    uint32_t time_initial = HAL_GetTick();
+    uint32_t time_actual;
+
+    while ((HAL_GPIO_ReadPin(device->int_gpio_bank, device->int_gpio_pin) == 0)) {
+        time_actual = HAL_GetTick();
+        if ((time_actual - time_initial) > ms) {
+            return LT_L1_INT_TIMEOUT;
+        }
+        // HAL_Delay(ms);
+    }
+
+    return LT_OK;
+}
+#endif
+
 int lt_port_log(const char *format, ...)
 {
     va_list args;
